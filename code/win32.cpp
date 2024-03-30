@@ -15,10 +15,14 @@
 #include "opengl_renderer.cpp"
 #include "game.cpp"
 
+GameInputs inputs;
+
 bool running;
 bool show_debug_cursor = false;
 
 static WindowDimension win32_get_window_dimensions(HWND window);
+
+static void win32_set_key(u32 key, bool is_down);
 
 LRESULT WINAPI 
 win32_callback(HWND window,
@@ -67,11 +71,13 @@ win32_callback(HWND window,
             }
 
             if (code == 'W') {
-                if (was_down) {
-                    OutputDebugStringA("Released W\n");
-                } else if (is_down) {
-                    OutputDebugStringA("Pressed W\n");
-                }
+                win32_set_key(KEY_W, is_down);
+            } else if (code == 'S') {
+                win32_set_key(KEY_S, is_down);
+            } else if (code == 'A') {
+                win32_set_key(KEY_A, is_down);
+            } else if (code == 'D') {
+                win32_set_key(KEY_D, is_down);
             } else if (code == VK_ESCAPE) {
                 running = false;
             }
@@ -87,6 +93,15 @@ win32_callback(HWND window,
     };
 
     return result;
+}
+
+static void win32_set_key(u32 key, bool is_down)
+{
+    if (is_down) {
+        inputs.down |= key;
+    } else {
+        inputs.down &= ~key;
+    }
 }
 
 static WindowDimension win32_get_window_dimensions(HWND window)
@@ -202,6 +217,8 @@ int WINAPI WinMain(HINSTANCE instance,
                    HINSTANCE prev_instance, 
                    PSTR cmd_line, 
                    int cmd_show) {
+    inputs = {};
+
     LARGE_INTEGER perf_count_freq_res;
     QueryPerformanceFrequency(&perf_count_freq_res);
     f64 perf_count_freq = (f64) perf_count_freq_res.QuadPart;
@@ -272,7 +289,7 @@ int WINAPI WinMain(HINSTANCE instance,
         WindowDimension dimension = win32_get_window_dimensions(window);
 
         begin_command_buffer(&render_commands);
-        update_and_render(game_state, &render_commands);
+        update_and_render(game_state, &render_commands, inputs, 1.0f / 60.0f);
 
         opengl_process_commands(&render_commands, dimension);
 
