@@ -24,6 +24,8 @@ static OpenGLProgram load_program(const char* vertex_file, const char* frag_file
     TempMemoryRegion temp_memory = arena->start_temp();
 
     char info_log[512];
+    char debug_log[1024];
+
     i32 status;
 
     char *vert_src = platform_load_file(vertex_file, arena, NULL);
@@ -33,7 +35,8 @@ static OpenGLProgram load_program(const char* vertex_file, const char* frag_file
     glGetShaderiv(vertex_prog, GL_COMPILE_STATUS, &status);
     if (!status) {
         glGetShaderInfoLog(vertex_prog, 512, NULL, info_log);
-        printf("Error compiling vertex shader: %s\n", info_log);
+        sprintf(debug_log, "Error compiling vertex shader (%s): %s\n", vertex_file, info_log);
+        platform_log(debug_log);
         assert(0);
     }
 
@@ -44,7 +47,8 @@ static OpenGLProgram load_program(const char* vertex_file, const char* frag_file
     glGetShaderiv(frag_prog, GL_COMPILE_STATUS, &status);
     if(!status) {
         glGetShaderInfoLog(frag_prog, 512, NULL, info_log);
-        printf("Error compiling fragment shader: %s\n", info_log);
+        sprintf(debug_log, "Error compiling fragment shader (%s): %s\n", frag_file, info_log);
+        platform_log(debug_log);
         assert(0);
     }
 
@@ -56,7 +60,8 @@ static OpenGLProgram load_program(const char* vertex_file, const char* frag_file
     glGetProgramiv(shader.id, GL_LINK_STATUS, &status);
     if(!status) {
         glGetProgramInfoLog(shader.id, 512, NULL, info_log);
-        printf("Error linking shader: %s\n", info_log);
+        sprintf(debug_log, "Error linking shader (%s): %s\n", vertex_file, info_log);
+        platform_log(debug_log);
         assert(0);
     }
 
@@ -92,13 +97,16 @@ void opengl_init_renderer(Arena *arena)
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*) offsetof(Vertex, pos));
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*) offsetof(Vertex, color));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*) offsetof(Vertex, norm));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*) offsetof(Vertex, color));
 
     opengl.prim_shader = load_program("shader/prim.vert", "shader/prim.frag", arena);
     glUseProgram(opengl.prim_shader.id);
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
+    glFrontFace(GL_CW);
 }
 
 void opengl_process_commands(CommandBuffer *commands, WindowDimension dimension)

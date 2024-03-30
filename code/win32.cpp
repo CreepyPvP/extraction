@@ -193,6 +193,11 @@ char* platform_load_file(const char *name, Arena *arena, u64* length)
     return (char*) buffer;
 }
 
+inline void platform_log(char *message)
+{
+    OutputDebugStringA(message);
+}
+
 int WINAPI WinMain(HINSTANCE instance, 
                    HINSTANCE prev_instance, 
                    PSTR cmd_line, 

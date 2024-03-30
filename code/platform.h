@@ -11,5 +11,7 @@ struct WindowDimension
 
 char* platform_load_file(const char *name, Arena *arena, u64* bytes = NULL);
 
+inline void platform_log(char *message);
+
 #endif
 
