@@ -98,7 +98,7 @@ void opengl_init_renderer(Arena *arena)
     glUseProgram(opengl.prim_shader.id);
 
     glEnable(GL_DEPTH_TEST);
-    glDisable(GL_CULL_FACE);
+    glEnable(GL_CULL_FACE);
 }
 
 void opengl_process_commands(CommandBuffer *commands, WindowDimension dimension)

@@ -24,6 +24,9 @@ void update_and_render(GameState* state, CommandBuffer *commands)
 
     commands->basis = basis(state->projection, view);
 
-    push_clear(commands, v3(0.1, 0.1, 0.2));
-    draw_axis_widget(commands, 1);
+    commands->push_clear(v3(0.1, 0.1, 0.2));
+    // commands->draw_axis_widget(0.5);
+
+    commands->draw_cube(v3(0), v3(0.5), v3(1, 0, 0));
+    commands->draw_cube(v3(0, 0, -1), v3(10, 10, 0.5), v3(1));
 }

@@ -248,10 +248,6 @@ int WINAPI WinMain(HINSTANCE instance,
     CommandBuffer render_commands = alloc_command_buffer(&win32_arena);
     GameState *game_state = create_game_state(game_memory, game_memory_size);
 
-    LARGE_INTEGER last_counter;
-    QueryPerformanceCounter(&last_counter);
-    u64 last_cycles = __rdtsc();
-
     while (running) {
         MSG message;
         while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
@@ -263,6 +259,10 @@ int WINAPI WinMain(HINSTANCE instance,
             DispatchMessageA(&message);
         }
 
+        LARGE_INTEGER start_counter;
+        QueryPerformanceCounter(&start_counter);
+        u64 start_cycles = __rdtsc();
+
         HDC device_context = GetDC(window);
         WindowDimension dimension = win32_get_window_dimensions(window);
 
@@ -270,15 +270,15 @@ int WINAPI WinMain(HINSTANCE instance,
         update_and_render(game_state, &render_commands);
 
         opengl_process_commands(&render_commands, dimension);
-        SwapBuffers(device_context);
 
+        SwapBuffers(device_context);
         ReleaseDC(window, device_context);
 
-        LARGE_INTEGER counter_end;
-        QueryPerformanceCounter(&counter_end);
-        u64 cycle_end = __rdtsc();
-        u64 cycles_elapsed = cycle_end - last_cycles;
-        i64 counter_elapsed = counter_end.QuadPart - last_counter.QuadPart;
+        LARGE_INTEGER end_counter;
+        QueryPerformanceCounter(&end_counter);
+        u64 end_cycles = __rdtsc();
+        u64 cycles_elapsed = end_cycles - start_cycles;
+        i64 counter_elapsed = end_counter.QuadPart - start_counter.QuadPart;
         f64 ms_per_frame = (1000.0f * counter_elapsed) / perf_count_freq;
         f64 fps = perf_count_freq / (f64) counter_elapsed;
         f64 mcpf = ((f64) cycles_elapsed) / (1000.0f * 1000.0f);
@@ -287,8 +287,6 @@ int WINAPI WinMain(HINSTANCE instance,
         sprintf(buffer, "%.02fms/f,  %.02ff/s,  %.02fmc/f\n", ms_per_frame, fps, mcpf);
         OutputDebugStringA(buffer);
 
-        last_counter = counter_end;
-        last_cycles = cycle_end;
     }
 
     return 0;

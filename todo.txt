@@ -24,5 +24,6 @@ Platform layer
     "Fullscreen"
 
 logging
+profiling
 fix timing
 
