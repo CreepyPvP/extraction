@@ -1,0 +1,28 @@
+Goals with the project:
+    Win32 platform layer (get rid of glfw + glad)
+    Learn multithreading basics
+    Learn udp networking basics + game state synchronization
+    A simpler way to handle assets + animations
+    (Maybe test art style)
+    (Maybe test lighting)
+
+
+Platform layer
+    Open window                     (done)
+    Keyboard input                  (done)
+    Memory allocation               (done)
+    Timing                          (done)
+    Window dimensions               (done)
+    Cursor                          (done)
+    Opengl context and drawing
+    Hot reloading
+    Mouse input
+    Sound
+    Read from file / write to file
+    Threads
+    Networking
+    "Fullscreen"
+
+logging
+fix timing
+
