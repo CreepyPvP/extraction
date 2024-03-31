@@ -170,6 +170,7 @@ static void init_opengl(HWND window)
     glUseProgram = (GL_USE_PROGRAM) get_opengl_proc("glUseProgram");
     glBufferData = (GL_BUFFER_DATA) get_opengl_proc("glBufferData");
     glMultiDrawArrays = (GL_MULTI_DRAW_ARRAYS) get_opengl_proc("glMultiDrawArrays");
+    // get_opengl_proc("wglSwapIntervalEXT");
 }
 
 void* win32_alloc(u64 size) 
