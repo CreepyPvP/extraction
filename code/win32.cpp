@@ -1,5 +1,8 @@
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <gl/gl.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -124,7 +127,7 @@ static void* get_opengl_proc(const char* name)
     return proc;
 }
 
-static void init_opengl(HWND window) 
+static void win32_init_opengl(HWND window) 
 {
     HDC dc = GetDC(window);
 
@@ -170,7 +173,25 @@ static void init_opengl(HWND window)
     glUseProgram = (GL_USE_PROGRAM) get_opengl_proc("glUseProgram");
     glBufferData = (GL_BUFFER_DATA) get_opengl_proc("glBufferData");
     glMultiDrawArrays = (GL_MULTI_DRAW_ARRAYS) get_opengl_proc("glMultiDrawArrays");
-    // get_opengl_proc("wglSwapIntervalEXT");
+
+    void (*swap_interval)(GLuint) = (void (*)(GLuint)) get_opengl_proc("wglSwapIntervalEXT");
+    swap_interval(0);
+}
+
+static void win32_create_socket()
+{
+    WSADATA wsa_data;
+
+    if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0) {
+        OutputDebugStringA("WSAStartup failed\n");
+        assert(0);
+    }
+
+    if (LOBYTE(wsa_data.wVersion) != 2 || HIBYTE(wsa_data.wVersion) != 2) {
+        OutputDebugStringA("Versiion 2.2 of Winsock is not available\n");
+        WSACleanup();
+        assert(0);
+    }
 }
 
 void* win32_alloc(u64 size) 
@@ -252,7 +273,8 @@ int WINAPI WinMain(HINSTANCE instance,
 
     if (window) {
         OutputDebugStringA("Created Window\n");
-        init_opengl(window);
+        win32_init_opengl(window);
+        win32_create_socket();
         running = true;
     } else {
         OutputDebugStringA("Failed to create Window\n");
@@ -290,7 +312,7 @@ int WINAPI WinMain(HINSTANCE instance,
         WindowDimension dimension = win32_get_window_dimensions(window);
 
         begin_command_buffer(&render_commands);
-        update_and_render(game_state, &render_commands, inputs, 1.0f / 60.0f);
+        update_and_render(game_state, &render_commands, inputs, 1.0f / 1000.0f);
 
         opengl_process_commands(&render_commands, dimension);
 
