@@ -193,6 +193,25 @@ static ADDRINFOA* win32_select_addr(ADDRINFOA *addr)
     return selected;
 }
 
+static ADDRINFO* win32_get_addr_info(char *name, char *port)
+{
+    ADDRINFOA hints = {};
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    if (!name) {     
+        // NOTE: Dont set this when connecting to remote host
+        hints.ai_flags |= AI_PASSIVE;
+    }
+
+    ADDRINFOA *result;
+    if (getaddrinfo(name, port, &hints, &result)) {
+        // TODO: Handle this
+        assert(0);
+    }
+
+    return win32_select_addr(result);
+}
+
 static void win32_create_socket()
 {
     WSADATA wsa_data;
@@ -203,52 +222,15 @@ static void win32_create_socket()
     }
 
     if (LOBYTE(wsa_data.wVersion) != 2 || HIBYTE(wsa_data.wVersion) != 2) {
-        platform_log("Versiion 2.2 of Winsock is not available\n");
+        platform_log("Version 2.2 of Winsock is not available\n");
         WSACleanup();
         assert(0);
     }
 
-    ADDRINFOA hints = {};
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_flags = AI_PASSIVE;     // NOTE: Leave it zeroed when connecting to remote host
-    hints.ai_socktype = SOCK_DGRAM;
+    ADDRINFOA *addr = win32_get_addr_info(NULL, "6969");
 
-    ADDRINFOA *result;
-    // getaddrinfo("www.helloworld.de", "80", &hints, &result);
-    if (getaddrinfo(NULL, "6969", &hints, &result)) {
-        // TODO: Handle this
-        assert(0);
-    }
-
-    ADDRINFOA *addr = win32_select_addr(result);
-
-    i32 sock = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
-    if (sock == -1) {
-        // TODO: We failed opening a socket for some reason. Handle this
-        assert(0);
-    }
-
-    // This only assigns a port. THIS DOES NOT LISTEN FOR INCOMING CONNECTIONS
-    // Do we need to listen for udp "connections"?
-    // No we dont.
-    if (bind(sock, addr->ai_addr, addr->ai_addrlen)) {
-        // TODO: We failed to bind for some reason. Handle this
-        assert(0);
-    }
-
-    // Do this on the client? Automatically assings a port for us...
-    // connect(sock, addr->ai_addr, addr->ai_addrlen);
-    
-    char *message = "Hello world this my test socket";
-    u32 len = sizeof(message);
-    // How does this bahave on a connectionless socket?
-    i32 bytes_sent = send(sock, message, len, 0);
-    if (bytes_sent < len) {
-        // Message got sent partially. Resend it
-    }
-    if (bytes_sent == -1) {
-        // Cant send. Handle this
-    }
+    closesocket(sock);
+    WSACleanup();
 }
 
 void* win32_alloc(u64 size) 
