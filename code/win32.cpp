@@ -174,8 +174,23 @@ static void win32_init_opengl(HWND window)
     glBufferData = (GL_BUFFER_DATA) get_opengl_proc("glBufferData");
     glMultiDrawArrays = (GL_MULTI_DRAW_ARRAYS) get_opengl_proc("glMultiDrawArrays");
 
-    void (*swap_interval)(GLuint) = (void (*)(GLuint)) get_opengl_proc("wglSwapIntervalEXT");
-    swap_interval(0);
+    // void (*swap_interval)(GLuint) = (void (*)(GLuint)) get_opengl_proc("wglSwapIntervalEXT");
+    // swap_interval(0);
+}
+
+static ADDRINFOA* win32_select_addr(ADDRINFOA *addr)
+{
+    ADDRINFOA *selected = NULL;
+
+    while (addr) {
+        // We prefer ipv6
+        if (!selected || addr->ai_family == AF_INET6) {
+            selected = addr;
+        }
+        addr = addr->ai_next;
+    }
+
+    return selected;
 }
 
 static void win32_create_socket()
@@ -183,14 +198,56 @@ static void win32_create_socket()
     WSADATA wsa_data;
 
     if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0) {
-        OutputDebugStringA("WSAStartup failed\n");
+        platform_log("WSAStartup failed\n");
         assert(0);
     }
 
     if (LOBYTE(wsa_data.wVersion) != 2 || HIBYTE(wsa_data.wVersion) != 2) {
-        OutputDebugStringA("Versiion 2.2 of Winsock is not available\n");
+        platform_log("Versiion 2.2 of Winsock is not available\n");
         WSACleanup();
         assert(0);
+    }
+
+    ADDRINFOA hints = {};
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_flags = AI_PASSIVE;     // NOTE: Leave it zeroed when connecting to remote host
+    hints.ai_socktype = SOCK_DGRAM;
+
+    ADDRINFOA *result;
+    // getaddrinfo("www.helloworld.de", "80", &hints, &result);
+    if (getaddrinfo(NULL, "6969", &hints, &result)) {
+        // TODO: Handle this
+        assert(0);
+    }
+
+    ADDRINFOA *addr = win32_select_addr(result);
+
+    i32 sock = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
+    if (sock == -1) {
+        // TODO: We failed opening a socket for some reason. Handle this
+        assert(0);
+    }
+
+    // This only assigns a port. THIS DOES NOT LISTEN FOR INCOMING CONNECTIONS
+    // Do we need to listen for udp "connections"?
+    // No we dont.
+    if (bind(sock, addr->ai_addr, addr->ai_addrlen)) {
+        // TODO: We failed to bind for some reason. Handle this
+        assert(0);
+    }
+
+    // Do this on the client? Automatically assings a port for us...
+    // connect(sock, addr->ai_addr, addr->ai_addrlen);
+    
+    char *message = "Hello world this my test socket";
+    u32 len = sizeof(message);
+    // How does this bahave on a connectionless socket?
+    i32 bytes_sent = send(sock, message, len, 0);
+    if (bytes_sent < len) {
+        // Message got sent partially. Resend it
+    }
+    if (bytes_sent == -1) {
+        // Cant send. Handle this
     }
 }
 
@@ -198,7 +255,7 @@ void* win32_alloc(u64 size)
 {
     void* memory = VirtualAlloc( NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!memory) {
-        OutputDebugStringA("Failed to allocate memory\n");
+        platform_log("Failed to allocate memory\n");
         assert(0);
         // TODO: Handle this
     }
@@ -212,7 +269,7 @@ char* platform_load_file(const char *name, Arena *arena, u64* length)
     if (fptr == NULL) {
         char buffer[256];
         sprintf(buffer, "Failed to read file: %s\n", name);
-        OutputDebugStringA(buffer);
+        platform_log(buffer);
         assert(0);
     }
 
@@ -232,7 +289,7 @@ char* platform_load_file(const char *name, Arena *arena, u64* length)
 
 inline void platform_log(char *message)
 {
-    OutputDebugStringA(message);
+    // OutputDebugStringA(message);
 }
 
 int WINAPI WinMain(HINSTANCE instance, 
@@ -272,12 +329,12 @@ int WINAPI WinMain(HINSTANCE instance,
     }
 
     if (window) {
-        OutputDebugStringA("Created Window\n");
+        platform_log("Created Window\n");
         win32_init_opengl(window);
         win32_create_socket();
         running = true;
     } else {
-        OutputDebugStringA("Failed to create Window\n");
+        platform_log("Failed to create Window\n");
     }
 
     u64 platform_memory_size = Megabytes(64);
@@ -312,7 +369,7 @@ int WINAPI WinMain(HINSTANCE instance,
         WindowDimension dimension = win32_get_window_dimensions(window);
 
         begin_command_buffer(&render_commands);
-        update_and_render(game_state, &render_commands, inputs, 1.0f / 1000.0f);
+        update_and_render(game_state, &render_commands, inputs, 1.0f / 60.0f);
 
         opengl_process_commands(&render_commands, dimension);
 
@@ -330,8 +387,7 @@ int WINAPI WinMain(HINSTANCE instance,
 
         char buffer[256];
         sprintf(buffer, "%.02fms/f,  %.02ff/s,  %.02fmc/f\n", ms_per_frame, fps, mcpf);
-        OutputDebugStringA(buffer);
-
+        platform_log(buffer);
     }
 
     return 0;

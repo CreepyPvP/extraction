@@ -8,22 +8,15 @@ Goals with the project:
 
 
 Platform layer
-    Open window                     (done)
-    Keyboard input                  (done)
-    Memory allocation               (done)
-    Timing                          (done)
-    Window dimensions               (done)
-    Cursor                          (done)
-    Opengl context and drawing
+    Timing
     Hot reloading
     Mouse input
     Sound
-    Read from file / write to file
     Threads
-    Networking
     "Fullscreen"
+    Vsync
 
-logging
-profiling
-fix timing
+Networking
 
+Profiling
+    Tracy?
