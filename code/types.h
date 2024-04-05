@@ -16,6 +16,24 @@ typedef int64_t i64;
 typedef float f32;
 typedef double f64;
 
+enum StreamOp
+{
+    Stream_Write,
+    Stream_Read,
+};
+
+struct Stream
+{
+    u8 *memory;
+    u32 size;
+    u32 ptr;
+};
+
+inline Stream stream_from_mem(u8 *memory, u32 size)
+{
+    return Stream { memory, size };
+}
+
 struct V3
 {
     union {

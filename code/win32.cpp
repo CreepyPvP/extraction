@@ -12,6 +12,7 @@
 
 #include "types.h"
 #include "platform.h"
+#include "network.cpp"
 #include "game_math.cpp"
 #include "arena.cpp"
 #include "renderer.cpp"
@@ -23,9 +24,27 @@ GameInputs inputs;
 bool running;
 bool show_debug_cursor = false;
 
+i32 sock;
+
 static WindowDimension win32_get_window_dimensions(HWND window);
 
 static void win32_set_key(u32 key, bool is_down);
+
+
+struct Win32NetworkState
+{
+    i32 socket;
+    u32 buffer_size;
+    u8 *buffer;
+};
+
+union Win32Addr
+{
+    sockaddr addr;
+    sockaddr_in6 ipv6;
+    sockaddr_in ipv4;
+};
+
 
 LRESULT WINAPI 
 win32_callback(HWND window,
@@ -193,12 +212,12 @@ static ADDRINFOA* win32_select_addr(ADDRINFOA *addr)
     return selected;
 }
 
-static ADDRINFO* win32_get_addr_info(char *name, char *port)
+static ADDRINFO* win32_get_addr_info(char *name, char *port, bool will_bind)
 {
     ADDRINFOA hints = {};
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_DGRAM;
-    if (!name) {     
+    if (!name && will_bind) {     
         // NOTE: Dont set this when connecting to remote host
         hints.ai_flags |= AI_PASSIVE;
     }
@@ -212,8 +231,25 @@ static ADDRINFO* win32_get_addr_info(char *name, char *port)
     return win32_select_addr(result);
 }
 
-static void win32_create_socket()
+// NOTE:DLKFJDSFl;kdsjflsdkfjsdflksdjf
+static void win32_check_socket_error()
 {
+    i32 error = WSAGetLastError();
+    char buffer[256];
+    sprintf(buffer, "Network Error %i\n", error);
+    // TOOD: Maybe print error name?
+    platform_log(buffer);
+}
+
+static Win32NetworkState* win32_init_network(bool is_server, Arena *win32_arena)
+{
+
+    if (is_server) {
+        platform_log("Running server.\n");
+    } else {
+        platform_log("Running client.\n");
+    }
+
     WSADATA wsa_data;
 
     if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0) {
@@ -227,8 +263,33 @@ static void win32_create_socket()
         assert(0);
     }
 
-    ADDRINFOA *addr = win32_get_addr_info(NULL, "6969");
+    ADDRINFOA *server_addr = win32_get_addr_info(NULL, "7000", is_server);
 
+    i32 sock = socket(server_addr->ai_family, server_addr->ai_socktype, server_addr->ai_protocol);
+    assert(sock != -1);
+
+    Win32NetworkState *state = push_struct(win32_arena, Win32NetworkState);
+    state->socket = sock;
+    // The largest safe size of udp packets
+    state->buffer_size = 512;
+    state->buffer = push_bytes(win32_arena, state->buffer_size);
+
+    if (is_server) {
+        if (bind(sock, server_addr->ai_addr, server_addr->ai_addrlen)) {
+            assert(0);
+        }
+    } else {
+        if (connect(sock, server_addr->ai_addr, server_addr->ai_addrlen)) {
+            win32_check_socket_error();
+            assert(0);
+        }
+    }
+
+    return state;
+}
+
+static void win32_destroy_socket()
+{
     closesocket(sock);
     WSACleanup();
 }
@@ -274,10 +335,22 @@ inline void platform_log(char *message)
     // OutputDebugStringA(message);
 }
 
+inline u32 platform_ntoh(u32 value)
+{
+    return ntohl(value);
+}
+
+inline u32 platform_hton(u32 value)
+{
+    return htonl(value);
+}
+
 int WINAPI WinMain(HINSTANCE instance, 
                    HINSTANCE prev_instance, 
                    PSTR cmd_line, 
-                   int cmd_show) {
+                   int window_show) {
+    bool is_server = *cmd_line;
+
     inputs = {};
 
     LARGE_INTEGER perf_count_freq_res;
@@ -311,12 +384,15 @@ int WINAPI WinMain(HINSTANCE instance,
     }
 
     if (window) {
+        // Not the kind of fullscreen we want
+        // ShowWindow(window, SW_MAXIMIZE);
         platform_log("Created Window\n");
         win32_init_opengl(window);
-        win32_create_socket();
         running = true;
+
     } else {
         platform_log("Failed to create Window\n");
+        return 1;
     }
 
     u64 platform_memory_size = Megabytes(64);
@@ -324,13 +400,18 @@ int WINAPI WinMain(HINSTANCE instance,
     Arena win32_arena;
     init_arena(&win32_arena, platform_memory, platform_memory_size);
 
+    Win32NetworkState *network = win32_init_network(is_server, &win32_arena);
+
     u64 game_memory_size = Megabytes(64);
     void* game_memory = win32_alloc(game_memory_size);
 
     opengl_init_renderer(&win32_arena);
 
     CommandBuffer render_commands = alloc_command_buffer(&win32_arena);
-    GameState *game_state = create_game_state(game_memory, game_memory_size);
+    GameState *game_state = NULL;
+    if (is_server) {
+        game_state = create_game_state(game_memory, game_memory_size, NULL);
+    }
 
     while (running) {
         MSG message;
@@ -347,11 +428,61 @@ int WINAPI WinMain(HINSTANCE instance,
         QueryPerformanceCounter(&start_counter);
         u64 start_cycles = __rdtsc();
 
+        // TODO: Make sure all player inputs get polled here
+        {
+            if (is_server) {
+                // Poll client messages
+            } else {
+                Stream stream = stream_from_mem(network->buffer, network->buffer_size);
+                NetworkHeader header = header_of_type(Type_ClientInput);
+                stream_header(&stream, &header, Stream_Write);
+                stream_inputs(&stream, &inputs, Stream_Write);
+                send(network->socket, (char*) stream.memory, stream.ptr, 0);
+
+                while (true) {
+                    i32 bytes_read = recv(network->socket, (char*) &network->buffer, network->buffer_size, 0);
+                    Stream stream = stream_from_mem(network->buffer, bytes_read);
+
+                    if (bytes_read == -1) {
+                        win32_check_socket_error();
+                        break;
+                    }
+                    if (bytes_read > 0) {
+                        // Check if message starts with magic number
+                        NetworkHeader header;
+                        stream_header(&stream, &header, Stream_Read);
+
+                        if (header.magic_number != NETWORK_MAGIC_NUMBER) {
+                            continue;
+                        }
+
+                        if (header.type == Type_InitGameState) {
+                            if (!game_state) {
+                                // init game state here
+                            }
+                            // send ack packet
+                        }
+
+                        if (header.type == Type_ServerInput && game_state) {
+                            // ServerInput *server_input = (ServerInput*) buffer.buffer;
+                            // handle_server_input(game_state, server_input);
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
         HDC device_context = GetDC(window);
         WindowDimension dimension = win32_get_window_dimensions(window);
 
         begin_command_buffer(&render_commands);
-        update_and_render(game_state, &render_commands, inputs, 1.0f / 60.0f);
+        if (game_state) {
+            update_and_render(game_state, &render_commands, inputs, 1.0f / 60.0f);
+        } else {
+            render_loading_screen(&render_commands);
+        }
 
         opengl_process_commands(&render_commands, dimension);
 

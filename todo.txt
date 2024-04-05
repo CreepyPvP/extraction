@@ -20,3 +20,12 @@ Networking
 
 Profiling
     Tracy?
+
+
+
+server listening
+client handling
+game init packet
+sending update packets every frame
+
+simulated latency and packet loss
