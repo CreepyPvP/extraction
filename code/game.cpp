@@ -4,20 +4,6 @@ struct Player
     V3 color;
 };
 
-// Move all the network stuff to its own module
-struct ServerInput
-{
-    u32 player_count;
-    V3 *player_pos;
-};
-
-struct ServerInitState
-{
-    u32 me;
-    u32 player_count;
-    Player *player;
-};
-
 struct GameState
 {
     Arena arena;
@@ -48,8 +34,8 @@ GameState* create_game_state(void *memory, u64 size, ServerInitState *server_ini
     } else {
         u32 me = server_init->me;
         for (u32 i = 0; i < server_init->player_count; ++i) {
-            state->player[i].pos = server_init->player[i].pos;
-            state->player[i].color = server_init->player[i].color;
+            state->player[i].pos = server_init->player_pos[i];
+            state->player[i].color = server_init->player_color[i];
         }
     }
 

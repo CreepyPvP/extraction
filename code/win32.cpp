@@ -345,6 +345,16 @@ inline u32 platform_hton(u32 value)
     return htonl(value);
 }
 
+inline u32 platform_ntoh(f32 value)
+{
+    return ntohf(value);
+}
+
+inline u32 platform_hton(f32 value)
+{
+    return htonf(value);
+}
+
 int WINAPI WinMain(HINSTANCE instance, 
                    HINSTANCE prev_instance, 
                    PSTR cmd_line, 
@@ -430,6 +440,7 @@ int WINAPI WinMain(HINSTANCE instance,
 
         // TODO: Make sure all player inputs get polled here
         {
+            // TODO: Handle stream op failures
             if (is_server) {
                 // Poll client messages
             } else {
@@ -450,17 +461,24 @@ int WINAPI WinMain(HINSTANCE instance,
                     if (bytes_read > 0) {
                         // Check if message starts with magic number
                         NetworkHeader header;
-                        stream_header(&stream, &header, Stream_Read);
+                        bool valid_header = stream_header(&stream, &header, Stream_Read);
 
-                        if (header.magic_number != NETWORK_MAGIC_NUMBER) {
+                        if (!valid_header || header.magic_number != NETWORK_MAGIC_NUMBER) {
                             continue;
                         }
 
                         if (header.type == Type_InitGameState) {
                             if (!game_state) {
-                                // init game state here
+                                ServerInitState init_state;
+                                bool valid = stream_init_state(&stream, &init_state, Stream_Read); 
+                                if (valid) {
+                                    game_state = create_game_state(game_memory, game_memory_size, &init_state);
+                                }
                             }
-                            // send ack packet
+                            Stream stream = stream_from_mem(network->buffer, network->buffer_size);
+                            NetworkHeader ack_header = header_of_type(Type_AckGameState);
+                            stream_header(&stream, &ack_header, Stream_Write);
+                            send(network->socket, (char*) stream.memory, stream.ptr, 0);
                         }
 
                         if (header.type == Type_ServerInput && game_state) {

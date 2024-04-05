@@ -25,6 +25,8 @@ inline void platform_log(char *message);
 
 inline u32 platform_ntoh(u32 value);
 inline u32 platform_hton(u32 value);
+inline u32 platform_ntoh(f32 value);
+inline u32 platform_hton(f32 value);
 
 #endif
 
