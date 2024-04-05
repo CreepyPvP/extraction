@@ -4,6 +4,7 @@
 
 enum PacketType
 {
+    Type_Ping,
     Type_ClientInput,
     Type_ServerInput,
     Type_InitGameState,
@@ -19,12 +20,6 @@ struct NetworkHeader
 inline NetworkHeader header_of_type(PacketType type) {
     return { NETWORK_MAGIC_NUMBER, (u32) type };
 }
-
-struct NetworkPacket
-{
-    NetworkHeader header;
-    char buffer[256];
-};
 
 struct ServerInput
 {

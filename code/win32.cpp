@@ -268,6 +268,9 @@ static Win32NetworkState* win32_init_network(bool is_server, Arena *win32_arena)
     i32 sock = socket(server_addr->ai_family, server_addr->ai_socktype, server_addr->ai_protocol);
     assert(sock != -1);
 
+    DWORD non_blocking = 1;
+    assert(ioctlsocket(sock, FIONBIO, &non_blocking) == 0);
+
     Win32NetworkState *state = push_struct(win32_arena, Win32NetworkState);
     state->socket = sock;
     // The largest safe size of udp packets
@@ -442,16 +445,40 @@ int WINAPI WinMain(HINSTANCE instance,
         {
             // TODO: Handle stream op failures
             if (is_server) {
-                // Poll client messages
-            } else {
-                Stream stream = stream_from_mem(network->buffer, network->buffer_size);
-                NetworkHeader header = header_of_type(Type_ClientInput);
-                stream_header(&stream, &header, Stream_Write);
-                stream_inputs(&stream, &inputs, Stream_Write);
-                send(network->socket, (char*) stream.memory, stream.ptr, 0);
-
                 while (true) {
-                    i32 bytes_read = recv(network->socket, (char*) &network->buffer, network->buffer_size, 0);
+                    Win32Addr from;
+                    i32 from_len = sizeof(from);
+                    i32 bytes_read = recvfrom(network->socket, (char*) network->buffer, network->buffer_size, 0, (SOCKADDR*) &from, &from_len);
+                    if (bytes_read == -1) {
+                        break;
+                    }
+                    if (bytes_read > 0) {
+                        Stream stream = stream_from_mem(network->buffer, network->buffer_size);
+                        NetworkHeader header; 
+                        bool valid_header = stream_header(&stream, &header, Stream_Read);
+
+                        if (!valid_header || header.magic_number != NETWORK_MAGIC_NUMBER) {
+                            continue;
+                        }
+
+                        if (header.type == Type_Ping) {
+                            Stream stream = stream_from_mem(network->buffer, network->buffer_size);
+                            NetworkHeader header = header_of_type(Type_InitGameState);
+                            stream_header(&stream, &header, Stream_Write);
+                            // TODO: Fill this struct out properly
+                            ServerInitState state;
+                            to_init_state(game_state, &state);
+                            stream_init_state(&stream, &state, Stream_Write);
+                            sendto(network->socket, (char*) stream.memory, stream.size, 0, &from.addr, from_len);
+                            continue;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            } else {
+                while (true) {
+                    i32 bytes_read = recv(network->socket, (char*) network->buffer, network->buffer_size, 0);
                     Stream stream = stream_from_mem(network->buffer, bytes_read);
 
                     if (bytes_read == -1) {
@@ -482,6 +509,7 @@ int WINAPI WinMain(HINSTANCE instance,
                         }
 
                         if (header.type == Type_ServerInput && game_state) {
+                            // TODO: Parse and apply server input
                             // ServerInput *server_input = (ServerInput*) buffer.buffer;
                             // handle_server_input(game_state, server_input);
                         }
@@ -489,6 +517,17 @@ int WINAPI WinMain(HINSTANCE instance,
                         break;
                     }
                 }
+
+                Stream stream = stream_from_mem(network->buffer, network->buffer_size);
+                if (game_state) {
+                    NetworkHeader header = header_of_type(Type_ClientInput);
+                    stream_header(&stream, &header, Stream_Write);
+                    stream_inputs(&stream, &inputs, Stream_Write);
+                } else {
+                    NetworkHeader header = header_of_type(Type_Ping);
+                    stream_header(&stream, &header, Stream_Write);
+                }
+                send(network->socket, (char*) stream.memory, stream.ptr, 0);
             }
         }
 

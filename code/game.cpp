@@ -14,6 +14,23 @@ struct GameState
     u32 me;
 };
 
+void to_init_state(GameState *state, ServerInitState *server_init)
+{
+    u32 new_player = state->player_count;
+    server_init->me = new_player;
+
+    state->player[new_player].pos = v3(0);
+    state->player[new_player].color = v3(0, 0, 1);
+    state->player_count++;
+
+    server_init->player_count = state->player_count;
+
+    for (u32 i = 0; i < state->player_count; ++i) {
+        server_init->player_pos[i] = state->player[i].pos;
+        server_init->player_color[i] = state->player[i].color;
+    }
+}
+
 GameState* create_game_state(void *memory, u64 size, ServerInitState *server_init)
 {
     assert(size >= sizeof(GameState));
