@@ -31,13 +31,6 @@ static WindowDimension win32_get_window_dimensions(HWND window);
 static void win32_set_key(u32 key, bool is_down);
 
 
-struct Win32NetworkState
-{
-    i32 socket;
-    u32 buffer_size;
-    u8 *buffer;
-};
-
 union Win32Addr
 {
     sockaddr addr;
@@ -45,6 +38,20 @@ union Win32Addr
     sockaddr_in ipv4;
 };
 
+
+struct Win32NetworkState
+{
+    i32 socket;
+    u32 buffer_size;
+    u8 *buffer;
+};
+
+struct Win32ServerState
+{
+    Win32NetworkState base;
+    u32 client_count;
+    Win32Addr clients[4];
+};
 
 LRESULT WINAPI 
 win32_callback(HWND window,
@@ -231,6 +238,33 @@ static ADDRINFO* win32_get_addr_info(char *name, char *port, bool will_bind)
     return win32_select_addr(result);
 }
 
+bool win32_compare_addr(Win32Addr *a, Win32Addr* b)
+{
+    if (a->addr.sa_family != b->addr.sa_family) {
+        return false;
+    }
+
+    if (a->addr.sa_family == AF_INET) {
+        return a->ipv4.sin_port == b->ipv4.sin_port &&
+                a->ipv4.sin_addr.S_un.S_addr == b->ipv4.sin_addr.S_un.S_addr;
+    }
+    if (a->addr.sa_family == AF_INET6) {
+        if (a->ipv6.sin6_port != b->ipv6.sin6_port) {
+            return false;
+        }
+
+        for (u32 i = 0; i < 16; ++i) {
+            if (a->ipv6.sin6_addr.u.Byte[i] != b->ipv6.sin6_addr.u.Byte[i]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
 // NOTE:DLKFJDSFl;kdsjflsdkfjsdflksdjf
 static void win32_check_socket_error()
 {
@@ -271,7 +305,15 @@ static Win32NetworkState* win32_init_network(bool is_server, Arena *win32_arena)
     DWORD non_blocking = 1;
     assert(ioctlsocket(sock, FIONBIO, &non_blocking) == 0);
 
-    Win32NetworkState *state = push_struct(win32_arena, Win32NetworkState);
+    Win32NetworkState *state;
+    if (is_server) {
+        Win32ServerState *server = push_struct(win32_arena, Win32ServerState);
+        server->client_count = 0;
+        state = (Win32NetworkState*) server;
+    } else {
+        state = push_struct(win32_arena, Win32NetworkState);
+    }
+
     state->socket = sock;
     // The largest safe size of udp packets
     state->buffer_size = 512;
@@ -445,6 +487,7 @@ int WINAPI WinMain(HINSTANCE instance,
         {
             // TODO: Handle stream op failures
             if (is_server) {
+                Win32ServerState *server = (Win32ServerState*) network;
                 while (true) {
                     Win32Addr from;
                     i32 from_len = sizeof(from);
@@ -461,11 +504,21 @@ int WINAPI WinMain(HINSTANCE instance,
                             continue;
                         }
 
-                        if (header.type == Type_Ping) {
+                        i32 client_id = -1;
+                        for (u32 i = 0; server->client_count; ++i) {
+                            if (win32_compare_addr(&from, server->clients + i)) {
+                                client_id = i;
+                                break;
+                            }
+                        }
+
+                        if (client_id == -1 && header.type == Type_Ping && server->client_count < 4) {
+                            server->clients[server->client_count] = from;
+                            server->client_count++;
+
                             Stream stream = stream_from_mem(network->buffer, network->buffer_size);
                             NetworkHeader header = header_of_type(Type_InitGameState);
                             stream_header(&stream, &header, Stream_Write);
-                            // TODO: Fill this struct out properly
                             ServerInitState state;
                             to_init_state(game_state, &state);
                             stream_init_state(&stream, &state, Stream_Write);

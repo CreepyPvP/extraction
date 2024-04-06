@@ -55,11 +55,12 @@ bool stream_u32(Stream *stream, u32 *value, StreamOp op)
 
 bool stream_f32(Stream *stream, f32 *value, StreamOp op)
 {
-    if (stream->ptr + sizeof(f32) < stream->size) {
+    if (stream->ptr + sizeof(f32) > stream->size) {
         return false;
     }
 
     f32 *addr = (f32*) (stream->memory + stream->ptr);
+    stream->ptr += sizeof(f32);
 
     if (op == Stream_Write) {
         *addr = platform_hton(*value);
