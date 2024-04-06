@@ -380,22 +380,22 @@ inline void platform_log(char *message)
     // OutputDebugStringA(message);
 }
 
-inline u32 platform_ntoh(u32 value)
+inline u32 platform_ntohu(u32 value)
 {
     return ntohl(value);
 }
 
-inline u32 platform_hton(u32 value)
+inline u32 platform_htonu(u32 value)
 {
     return htonl(value);
 }
 
-inline u32 platform_ntoh(f32 value)
+inline f32 platform_ntohf(u32 value)
 {
     return ntohf(value);
 }
 
-inline u32 platform_hton(f32 value)
+inline u32 platform_htonf(f32 value)
 {
     return htonf(value);
 }
@@ -421,11 +421,18 @@ int WINAPI WinMain(HINSTANCE instance,
 
     HWND window = {};
 
+    char *title;
+    if (is_server) {
+        title = "DashRealm (Server)";
+    } else {
+        title = "DashRealm";
+    }
+
     if (RegisterClass(&window_class)) {
          window = CreateWindowEx(
             0,
             window_class.lpszClassName,
-            "Extraction",
+            title,
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
             CW_USEDEFAULT,
             CW_USEDEFAULT,

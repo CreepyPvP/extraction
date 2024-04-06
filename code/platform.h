@@ -23,10 +23,10 @@ char* platform_load_file(const char *name, Arena *arena, u64* bytes = NULL);
 
 inline void platform_log(char *message);
 
-inline u32 platform_ntoh(u32 value);
-inline u32 platform_hton(u32 value);
-inline u32 platform_ntoh(f32 value);
-inline u32 platform_hton(f32 value);
+inline u32 platform_ntohu(u32 value);
+inline u32 platform_htonu(u32 value);
+inline f32 platform_ntohf(u32 value);
+inline u32 platform_htonf(f32 value);
 
 #endif
 

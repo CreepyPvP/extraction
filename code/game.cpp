@@ -49,7 +49,8 @@ GameState* create_game_state(void *memory, u64 size, ServerInitState *server_ini
         state->player[me].color = v3(1, 0, 0);
         state->me = me;
     } else {
-        u32 me = server_init->me;
+        state->me = server_init->me;
+        state->player_count = server_init->player_count;
         for (u32 i = 0; i < server_init->player_count; ++i) {
             state->player[i].pos = server_init->player_pos[i];
             state->player[i].color = server_init->player_color[i];

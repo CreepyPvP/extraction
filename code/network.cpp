@@ -45,9 +45,9 @@ bool stream_u32(Stream *stream, u32 *value, StreamOp op)
     stream->ptr += sizeof(u32);
 
     if (op == Stream_Write) {
-        *addr = platform_hton(*value);
+        *addr = platform_htonu(*value);
     } else {
-        *value = platform_ntoh(*addr);
+        *value = platform_ntohu(*addr);
     }
 
     return true;
@@ -59,13 +59,13 @@ bool stream_f32(Stream *stream, f32 *value, StreamOp op)
         return false;
     }
 
-    f32 *addr = (f32*) (stream->memory + stream->ptr);
+    u32 *addr = (u32*) (stream->memory + stream->ptr);
     stream->ptr += sizeof(f32);
 
     if (op == Stream_Write) {
-        *addr = platform_hton(*value);
+        *addr = platform_htonf(*value);
     } else {
-        *value = platform_ntoh(*addr);
+        *value = platform_ntohf(*addr);
     }
 
     return true;
