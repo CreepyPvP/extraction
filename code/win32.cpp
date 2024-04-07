@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <math.h>
 
+#define TICK_DELTA (1.0f / 60.0f)
+
 #include "types.h"
 #include "platform.h"
 #include "network.cpp"
@@ -46,11 +48,17 @@ struct Win32NetworkState
     u8 *buffer;
 };
 
+struct Win32Client
+{
+    Win32Addr addr;
+    i32 player_id;
+};
+
 struct Win32ServerState
 {
     Win32NetworkState base;
     u32 client_count;
-    Win32Addr clients[4];
+    Win32Client clients[4];
 };
 
 LRESULT WINAPI 
@@ -512,25 +520,38 @@ int WINAPI WinMain(HINSTANCE instance,
                         }
 
                         i32 client_id = -1;
+                        Win32Client *client;
                         for (u32 i = 0; server->client_count; ++i) {
-                            if (win32_compare_addr(&from, server->clients + i)) {
+                            if (win32_compare_addr(&from, &server->clients[i].addr)) {
                                 client_id = i;
+                                client = server->clients + i;
                                 break;
                             }
                         }
 
                         if (client_id == -1 && header.type == Type_Ping && server->client_count < 4) {
-                            server->clients[server->client_count] = from;
+                            client = server->clients + server->client_count;
                             server->client_count++;
+                            client->addr = from;
 
                             Stream stream = stream_from_mem(network->buffer, network->buffer_size);
                             NetworkHeader header = header_of_type(Type_InitGameState);
                             stream_header(&stream, &header, Stream_Write);
                             ServerInitState state;
-                            to_init_state(game_state, &state);
+                            client->player_id = add_player(game_state, &state);
                             stream_init_state(&stream, &state, Stream_Write);
                             sendto(network->socket, (char*) stream.memory, stream.size, 0, &from.addr, from_len);
+
                             continue;
+                        }
+
+                        // TODO: This is not a good idea. A hacked client could send multiple inputs each frame
+                        if (client_id != -1 && header.type == Type_ClientInput) {
+                            GameInputs inputs;
+                            bool valid_input = stream_inputs(&stream, &inputs, Stream_Read);
+                            if (valid_input) {
+                                update(game_state, inputs, TICK_DELTA, client->player_id);
+                            }
                         }
                     } else {
                         break;
@@ -596,7 +617,8 @@ int WINAPI WinMain(HINSTANCE instance,
 
         begin_command_buffer(&render_commands);
         if (game_state) {
-            update_and_render(game_state, &render_commands, inputs, 1.0f / 60.0f);
+            update(game_state, inputs, TICK_DELTA, -1);
+            render(game_state, &render_commands);
         } else {
             render_loading_screen(&render_commands);
         }

@@ -14,7 +14,7 @@ struct GameState
     u32 me;
 };
 
-void to_init_state(GameState *state, ServerInitState *server_init)
+i32 add_player(GameState *state, ServerInitState *server_init)
 {
     u32 new_player = state->player_count;
     server_init->me = new_player;
@@ -29,6 +29,8 @@ void to_init_state(GameState *state, ServerInitState *server_init)
         server_init->player_pos[i] = state->player[i].pos;
         server_init->player_color[i] = state->player[i].color;
     }
+
+    return new_player;
 }
 
 GameState* create_game_state(void *memory, u64 size, ServerInitState *server_init)
@@ -67,25 +69,31 @@ void handle_server_input(GameState* state, ServerInput *input)
     }
 }
 
-void update_and_render(GameState *state, CommandBuffer *commands, GameInputs inputs, float delta)
+void update(GameState *state, GameInputs inputs, float delta, i32 player)
 {
-    Mat4 view = look_at(v3(2, 0, 7), v3(0), v3(0, 0, 1)); 
+    if (player < 0) {
+        player = state->me;
+    }
 
     float speed = 4;
 
-    u32 me = state->me;
     if (inputs.down & KEY_W) {
-        state->player[me].pos.x -= speed * delta;
+        state->player[player].pos.x -= speed * delta;
     }
     if (inputs.down & KEY_S) {
-        state->player[me].pos.x += speed * delta;
+        state->player[player].pos.x += speed * delta;
     }
     if (inputs.down & KEY_A) {
-        state->player[me].pos.y -= speed * delta;
+        state->player[player].pos.y -= speed * delta;
     }
     if (inputs.down & KEY_D) {
-        state->player[me].pos.y += speed * delta;
+        state->player[player].pos.y += speed * delta;
     }
+}
+
+void render(GameState *state, CommandBuffer *commands)
+{
+    Mat4 view = look_at(v3(2, 0, 7), v3(0), v3(0, 0, 1)); 
 
     commands->basis = basis(state->projection, view);
     commands->push_clear(v3(0.1, 0.1, 0.2));
