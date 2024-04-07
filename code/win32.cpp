@@ -589,10 +589,12 @@ int WINAPI WinMain(HINSTANCE instance,
                             send(network->socket, (char*) stream.memory, stream.ptr, 0);
                         }
 
-                        if (header.type == Type_ServerInput && game_state) {
-                            // TODO: Parse and apply server input
-                            // ServerInput *server_input = (ServerInput*) buffer.buffer;
-                            // handle_server_input(game_state, server_input);
+                        if (header.type == Type_ServerUpdate && game_state) {
+                            ServerUpdate update;
+                            bool valid_update = stream_server_update(&stream, &update, Stream_Read);
+                            if (valid_update) {
+                                apply_server_update(game_state, &update);
+                            }
                         }
                     } else {
                         break;
@@ -619,6 +621,22 @@ int WINAPI WinMain(HINSTANCE instance,
         if (game_state) {
             update(game_state, inputs, TICK_DELTA, -1);
             render(game_state, &render_commands);
+
+            if (is_server) {
+                Win32ServerState *server = (Win32ServerState*) network;
+
+                Stream stream = stream_from_mem(network->buffer, network->buffer_size);
+                NetworkHeader header = header_of_type(Type_ServerUpdate);
+                ServerUpdate update;
+                to_server_update(game_state, &update);
+                stream_header(&stream, &header, Stream_Write);
+                stream_server_update(&stream, &update, Stream_Write);
+
+                for (u32 i = 0; i < server->client_count; ++i) {
+                    Win32Client *client = server->clients + i;
+                    sendto(network->socket, (char*) stream.memory, stream.size, 0, &client->addr.addr, sizeof(Win32Addr));
+                }
+            }
         } else {
             render_loading_screen(&render_commands);
         }

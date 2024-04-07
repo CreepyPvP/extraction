@@ -62,10 +62,19 @@ GameState* create_game_state(void *memory, u64 size, ServerInitState *server_ini
     return state;
 }
 
-void handle_server_input(GameState* state, ServerInput *input)
+void apply_server_update(GameState* state, ServerUpdate *update)
 {
-    for (u32 i = 0; i < input->player_count; ++i) {
-        state->player[i].pos = input->player_pos[i];
+    state->player_count = update->player_count;
+    for (u32 i = 0; i < update->player_count; ++i) {
+        state->player[i].pos = update->player_pos[i];
+    }
+}
+
+void to_server_update(GameState* state, ServerUpdate *update)
+{
+    update->player_count = state->player_count;
+    for (u32 i = 0; i < update->player_count; ++i) {
+        update->player_pos[i] = state->player[i].pos;
     }
 }
 

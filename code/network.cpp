@@ -6,7 +6,7 @@ enum PacketType
 {
     Type_Ping,
     Type_ClientInput,
-    Type_ServerInput,
+    Type_ServerUpdate,
     Type_InitGameState,
     Type_AckGameState,
 };
@@ -21,10 +21,10 @@ inline NetworkHeader header_of_type(PacketType type) {
     return { NETWORK_MAGIC_NUMBER, (u32) type };
 }
 
-struct ServerInput
+struct ServerUpdate
 {
     u32 player_count;
-    V3 *player_pos;
+    V3 player_pos[4];
 };
 
 struct ServerInitState
@@ -100,6 +100,17 @@ bool stream_init_state(Stream *stream, ServerInitState *state, StreamOp op)
     for (u32 i = 0; i < state->player_count; ++i) {
         Step(stream_v3(stream, state->player_pos + i, op));
         Step(stream_v3(stream, state->player_color + i, op));
+    }
+
+    return true;
+}
+
+bool stream_server_update(Stream *stream, ServerUpdate *update, StreamOp op)
+{
+    Step(stream_u32(stream, &update->player_count, op));
+
+    for (u32 i = 0; i < update->player_count; ++i) {
+        Step(stream_v3(stream, update->player_pos + i, op));
     }
 
     return true;
